@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+import ocr as tr
 
 class ObjectTracker():
 
@@ -11,6 +12,7 @@ class ObjectTracker():
     mult = 1.01
     tmp_dir ="temp/"
     items = list()
+    containers = list()
 
     def start(self,camera):
         print("Starting")
