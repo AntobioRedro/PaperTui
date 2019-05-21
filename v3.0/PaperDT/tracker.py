@@ -2,20 +2,22 @@ import cv2
 import numpy as np
 import os
 import ocr as tr
+import database as db
 
 class ObjectTracker():
-
     frame = None
     containers = None
     idx = None
     maxidx = None
     mult = 1.01
     tmp_dir ="temp/"
-    items = list()
-    containers = list()
+    database = None
 
     def start(self,camera):
-        print("Starting")
+        print("Starting database")
+        self.database = db.Database()
+       
+        print("Starting computer vision system")
         #Camera settings
         self.cap = cv2.VideoCapture(camera)
         
@@ -31,12 +33,11 @@ class ObjectTracker():
         self.low_white = np.array([0, 0, 240])
         self.high_white = np.array([255, 15, 255])
 
-        #Let's go
         self.ret, self.frame = self.cap.read()
     
     def stop(self):
         try:
-            print("Stopping cameras")
+            print("Stopping camera")
             self.cap.release()
             cv2.destroyAllWindows()
             print("Stopped")
@@ -64,14 +65,16 @@ class ObjectTracker():
             croppedRotated = cv2.getRectSubPix(cropped, (int(croppedW*self.mult), int(croppedH*self.mult)), (size[0]/2, size[1]/2)) 
 
             if croppedW>10 and croppedH>10:                    
-                cv2.imwrite(self.tmp_dir+str(self.idx) + '.png', croppedRotated)                
-                self.idx += 1
+                cv2.imwrite(self.tmp_dir+str(self.idx) + '.png', croppedRotated)  
+                print(self.idx," Foto tomada \n")    
+                self.idx += 1          
                 if (self.idx > self.maxidx):
-                    self.maxidx = self.idx
+                    self.maxidx = self.idx  
 
         except Exception as e:
             print(e)
-            
+    
+    #checar funcion
     def deleteExtraPics(self):
         if (self.maxidx > self.idx):
             rm = self.maxidx - self.idx
@@ -79,13 +82,15 @@ class ObjectTracker():
                 try:
                     if os.path.exists(self.tmp_dir+str(self.idx+x)+".png"):
                         print("Deleting ", self.tmp_dir+str(self.idx+x)+".png" )
+                        self.items.pop(self.idx+x)
                         os.remove(self.tmp_dir+str(self.idx+x)+".png")
                 except Exception as e:
                     print(e)
 
+
     def saveItem(self,con):
-        x = False
-        y = False
+        xrange = False
+        yrange = False
         saved = False
         rect = cv2.minAreaRect(con)
         box = cv2.boxPoints(rect)
@@ -104,43 +109,36 @@ class ObjectTracker():
         angle = rect[2] 
         center = (int((x1+x2)/2), int((y1+y2)/2)) 
 
-        item = {
-                'id': "",
-                'x1': x1, 
-                'x2': x2,
-                'y1': y1,
-                'y2': y2,
-                'center': center,
-                'text': "",
-                'type': "",
-               }
-
-
-        #CHECHAR ESTA FUNCION
-        if (len(self.items)>0):
-            for i in range(0,len(self.items)):
-                center_temp = self.items[i]['center']
-                #check X
-                if ((center[0]>center_temp[0]-10) and (center[0]<center_temp[0]+10)):
-                    x = True
-                #check Y|
-                if ((center[1]>center_temp[1]-10) and (center[1]<center_temp[1]+10)):
-                    y = True
-                if ((x) and (y)):
-                    saved = False
-                else:
-                    self.items.append(item)
-                    saved = True
+        print("ITEM: ",self.idx)
+        titem = self.database.getItem(self.idx)
+        
+        if (titem==None):
+            self.database.insertItem(self.idx,x1,x2,y1,y2,"","","")
+            saved = True                 
         else:
-            self.items.append(item)
-            saved = True
+            print(titem)
+            if ((x1 > titem[1] - 5) and (x1 < titem[3]+5)):
+                xrange = True
+
+            if ((y1 > titem[3] -5 ) and (y1 < titem[3]+5)):
+                yrange = True
+
+            if (xrange == False) and (yrange==False):
+                self.database.updateItem(self.idx,x1,x2,y1,y2,"","","")
+                saved = True                  
+            else:
+                print("NO cambios: ",self.idx, "\n")
+                self.idx += 1          
+                if (self.idx > self.maxidx):
+                    self.maxidx = self.idx 
+                saved = False
 
         return W,H,x1,x2,y1,y2,angle,center,saved
             
 
     def trackContainers(self):
         print("Tracking Tokens")
-        while True:
+        while True:        
             self.idx = 0
             _, self.frame = self.cap.read()
             #Paper detection
@@ -184,13 +182,12 @@ class ObjectTracker():
                     #Draw contours
                     cv2.drawContours(self.frame, approx, -1, (255, 255, 0), 3)
                     W,H,x1,x2,y1,y2,angle,center,saved = self.saveItem(contour)
-                    print(saved)
                     if (saved):
                         self.normalizar(W,H,x1,x2,y1,y2,angle,center)
                     #Save coords
                     
     
-            self.deleteExtraPics()
+            #self.deleteExtraPics()
             #debug only
             cv2.imshow("Green", green_mask)
             cv2.imshow("White", white_mask)
@@ -201,6 +198,8 @@ class ObjectTracker():
             if key == 27:
                self.stop()
                break
+
+            os.system("PAUSE")
 
         
 
