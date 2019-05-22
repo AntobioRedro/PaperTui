@@ -12,14 +12,21 @@ class ObjectTracker():
     mult = 1.01
     tmp_dir ="temp/"
     database = None
+    ocr = None
 
     def start(self,camera):
-        print("Starting database")
+        print(">>> Starting PaperType <<<")
+        print("Connecting to database")
         self.database = db.Database()
        
         print("Starting computer vision system")
         #Camera settings
         self.cap = cv2.VideoCapture(camera)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
+        print("Starting optical character recognition")
+        self.ocr = tr.TextRecognizer()
         
         #General settings
         self.idx = 0
@@ -37,10 +44,10 @@ class ObjectTracker():
     
     def stop(self):
         try:
-            print("Stopping camera")
+            print("Shuting down all systems")
             self.cap.release()
             cv2.destroyAllWindows()
-            print("Stopped")
+            print(">>> PaperType stopped <<<")
         except Exception as e:
             print(e)
 
@@ -50,8 +57,7 @@ class ObjectTracker():
         if angle < -45: 
             angle+=90 
             rotated = True
-             
-        
+                     
         size = (int(self.mult*(x2-x1)),int(self.mult*(y2-y1))) 
         M = cv2.getRotationMatrix2D((size[0]/2, size[1]/2), angle, 1.0) 
 
@@ -65,27 +71,38 @@ class ObjectTracker():
             croppedRotated = cv2.getRectSubPix(cropped, (int(croppedW*self.mult), int(croppedH*self.mult)), (size[0]/2, size[1]/2)) 
 
             if croppedW>10 and croppedH>10:                    
-                cv2.imwrite(self.tmp_dir+str(self.idx) + '.png', croppedRotated)  
-                print(self.idx," Foto tomada \n")    
-                self.idx += 1          
+                cv2.imwrite(self.tmp_dir+str(self.idx) + '.png', croppedRotated)
+                im = cv2.imread(self.tmp_dir+str(self.idx) + '.png', cv2.IMREAD_COLOR)            
+                im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+                imgT = cv2.adaptiveThreshold(im,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
+                cv2.imwrite(self.tmp_dir+str(self.idx) + '.png',imgT)
+
+                print(self.idx," Foto tomada \n")
+                #get Text
+                text = self.ocr.getText(self.tmp_dir+str(self.idx) + '.png')
+                self.database.updateText(self.idx,text)
+                self.idx += 1 
                 if (self.idx > self.maxidx):
                     self.maxidx = self.idx  
+                                         
 
         except Exception as e:
             print(e)
     
-    #checar funcion
+    
     def deleteExtraPics(self):
+        print("DELETING?", self.maxidx," - ",self.idx)
         if (self.maxidx > self.idx):
             rm = self.maxidx - self.idx
             for x in range(0, rm):
                 try:
-                    if os.path.exists(self.tmp_dir+str(self.idx+x)+".png"):
+                    if os.path.exists(self.tmp_dir+str(self.idx+x)+".png"):                        
+                        os.remove(self.tmp_dir+str(self.idx+x)+".png")                        
                         print("Deleting ", self.tmp_dir+str(self.idx+x)+".png" )
-                        self.items.pop(self.idx+x)
-                        os.remove(self.tmp_dir+str(self.idx+x)+".png")
                 except Exception as e:
                     print(e)
+            self.database.removeExtras(self.idx-1)
+            self.maxidx = self.idx
 
 
     def saveItem(self,con):
@@ -175,7 +192,7 @@ class ObjectTracker():
                 W = rect[1][0] 
                 H = rect[1][1] 
 
-                if (W>10) and (H>10):
+                if (W>15) and (H>15):
                     #Contour Approximation
                     epsilon = 0.1*cv2.arcLength(contour,True)
                     approx = cv2.approxPolyDP(contour,epsilon,True)
@@ -185,9 +202,10 @@ class ObjectTracker():
                     if (saved):
                         self.normalizar(W,H,x1,x2,y1,y2,angle,center)
                     #Save coords
+                    print("Max: ",self.maxidx)
                     
     
-            #self.deleteExtraPics()
+            self.deleteExtraPics()
             #debug only
             cv2.imshow("Green", green_mask)
             cv2.imshow("White", white_mask)

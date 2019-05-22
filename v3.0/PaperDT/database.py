@@ -14,9 +14,22 @@ class Database():
                 database="papertype"
             )
             self.db = self.conn.cursor()
+            print("Database connection established")
+            self.clean()
         except Exception as e:
             print(e)
-       
+
+    def clean(self): 
+        sql = "DELETE FROM items"
+        self.db.execute(sql)
+        self.conn.commit()
+
+    def removeExtras(self,n):
+        sql = "DELETE FROM items where id > %s"
+        val = (n,)
+        self.db.execute(sql,val)
+        self.conn.commit()
+
     def getItem(self,id):
         sql = "SELECT * FROM items where id = %s"
         val = (id,)
@@ -37,6 +50,13 @@ class Database():
         self.db.execute(sql, val)
         self.conn.commit()
         print("ACTUALIZADO")
+    
+    def updateText(self,id,text):
+        sql = "UPDATE items set text = %s where id = '%s'"
+        val = (str(text),int(id))
+        self.db.execute(sql, val)
+        self.conn.commit()
+        print("TEXTO ACTUALIZADO")
 
     def updateModel():
         print("Actualizando el modelo")
