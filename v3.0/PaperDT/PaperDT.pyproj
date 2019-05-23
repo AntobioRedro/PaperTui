@@ -22,10 +22,19 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="imggen.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="main.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="database.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="modelgen.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="recognizer.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="tracker.py">
