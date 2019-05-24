@@ -58,6 +58,13 @@ class Database():
         self.conn.commit()
         print("TEXTO ACTUALIZADO")
 
+    def updateType(self,id,text):
+        sql = "UPDATE items set type = %s where id = '%s'"
+        val = (str(text),int(id))
+        self.db.execute(sql, val)
+        self.conn.commit()
+        print("TIPO ACTUALIZADO")
+
     def updateModel():
         print("Actualizando el modelo")
 

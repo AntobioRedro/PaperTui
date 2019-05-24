@@ -1,11 +1,14 @@
 import cv2
 import numpy as np
 import os
+import time
 import ocr as tr
 import database as db
+import recognizer as obr
 
 class ObjectTracker():
     frame = None
+    outputframe = None
     containers = None
     idx = None
     maxidx = None
@@ -13,6 +16,8 @@ class ObjectTracker():
     tmp_dir ="temp/"
     database = None
     ocr = None
+    recognizer = None
+    debug = False;
 
     def start(self,camera):
         print(">>> Starting PaperType <<<")
@@ -27,6 +32,8 @@ class ObjectTracker():
 
         print("Starting optical character recognition")
         self.ocr = tr.TextRecognizer()
+
+        self.recognizer = obr.ObjectRecognizer()
         
         #General settings
         self.idx = 0
@@ -38,10 +45,11 @@ class ObjectTracker():
 
         #White Range
         self.low_white = np.array([0, 0, 240])
-        self.high_white = np.array([255, 15, 255])
+        #self.high_white = np.array([255, 15, 255])
+        self.high_white = np.array([255,20, 255])
 
         self.ret, self.frame = self.cap.read()
-    
+        
     def stop(self):
         try:
             print("Shuting down all systems")
@@ -73,18 +81,24 @@ class ObjectTracker():
             if croppedW>10 and croppedH>10:                    
                 cv2.imwrite(self.tmp_dir+str(self.idx) + '.png', croppedRotated)
                 im = cv2.imread(self.tmp_dir+str(self.idx) + '.png', cv2.IMREAD_COLOR)            
-                im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-                imgT = cv2.adaptiveThreshold(im,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
+                #im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+                #imgT = cv2.adaptiveThreshold(im,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
+                ret,imgT = cv2.threshold(im,127,255,cv2.THRESH_BINARY)
                 cv2.imwrite(self.tmp_dir+str(self.idx) + '.png',imgT)
-
                 print(self.idx," Foto tomada \n")
                 #get Text
                 text = self.ocr.getText(self.tmp_dir+str(self.idx) + '.png')
                 self.database.updateText(self.idx,text)
+
+                #get Type
+                type = self.recognizer.compare(self.tmp_dir+str(self.idx) + '.png')
+                self.database.updateType(self.idx,type)
+
+                cv2.putText(self.outputframe, type, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
+
                 self.idx += 1 
                 if (self.idx > self.maxidx):
-                    self.maxidx = self.idx  
-                                         
+                    self.maxidx = self.idx                                           
 
         except Exception as e:
             print(e)
@@ -144,7 +158,8 @@ class ObjectTracker():
                 self.database.updateItem(self.idx,x1,x2,y1,y2,"","","")
                 saved = True                  
             else:
-                print("NO cambios: ",self.idx, "\n")
+                print("NO cambios: ",self.idx, "\n")                
+                cv2.putText(self.outputframe, titem[7], center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
                 self.idx += 1          
                 if (self.idx > self.maxidx):
                     self.maxidx = self.idx 
@@ -158,6 +173,8 @@ class ObjectTracker():
         while True:        
             self.idx = 0
             _, self.frame = self.cap.read()
+            self.outret, self.outputframe = self.cap.read()
+
             #Paper detection
             hsv_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
 
@@ -177,7 +194,7 @@ class ObjectTracker():
                     epsilon = 0.1*cv2.arcLength(contour,True)
                     approx = cv2.approxPolyDP(contour,epsilon,True)
                     #Draw contours
-                    cv2.drawContours(self.frame, approx, -1, (0, 255, 255), 3)
+                    cv2.drawContours(self.outputframe, approx, -1, (0, 255, 255), 3)
                     #Save coords
                     
 
@@ -197,19 +214,24 @@ class ObjectTracker():
                     epsilon = 0.1*cv2.arcLength(contour,True)
                     approx = cv2.approxPolyDP(contour,epsilon,True)
                     #Draw contours
-                    cv2.drawContours(self.frame, approx, -1, (255, 255, 0), 3)
+                    cv2.drawContours(self.outputframe, approx, -1, (255, 255, 0), 3)
                     W,H,x1,x2,y1,y2,angle,center,saved = self.saveItem(contour)
                     if (saved):
                         self.normalizar(W,H,x1,x2,y1,y2,angle,center)
+                        
                     #Save coords
                     print("Max: ",self.maxidx)
                     
     
             self.deleteExtraPics()
             #debug only
-            cv2.imshow("Green", green_mask)
-            cv2.imshow("White", white_mask)
-            cv2.imshow("Color", self.frame)
+            if (self.debug):
+                cv2.imshow("Green", green_mask)
+                cv2.imshow("White", white_mask)
+                cv2.imshow("Color", self.frame)
+           
+            cv2.imshow("PaperType", self.outputframe)
+            
 
             #Terminate capture
             key = cv2.waitKey(1)
@@ -217,7 +239,7 @@ class ObjectTracker():
                self.stop()
                break
 
-            os.system("PAUSE")
+            #os.system("PAUSE")
 
         
 
