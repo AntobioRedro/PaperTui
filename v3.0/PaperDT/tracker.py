@@ -5,6 +5,7 @@ import time
 import ocr as tr
 import database as db
 import recognizer as obr
+import modelgen as mgen
 
 class ObjectTracker():
     frame = None
@@ -12,12 +13,15 @@ class ObjectTracker():
     containers = None
     idx = None
     maxidx = None
+    conid = None
+    conmaxid = None
     mult = 1.01
     tmp_dir ="temp/"
     database = None
     ocr = None
     recognizer = None
-    debug = False;
+    mgenerator = None
+    debug = True    
 
     def start(self,camera):
         print(">>> Starting PaperType <<<")
@@ -33,18 +37,24 @@ class ObjectTracker():
         print("Starting optical character recognition")
         self.ocr = tr.TextRecognizer()
 
+        print("Starting Object recognition")
         self.recognizer = obr.ObjectRecognizer()
         
+        print("Starting Model generator")
+        self.mgenerator = mgen.ModelGenerator()
+
         #General settings
         self.idx = 0
         self.maxidx = 0
+        self.conid = 0
+        self.conmaxid = 0
 
         #Green Range
         self.low_green = np.array([25, 52, 72])
         self.high_green = np.array([102, 255, 255])
 
         #White Range
-        self.low_white = np.array([0, 0, 240])
+        self.low_white = np.array([0, 0, 230])
         #self.high_white = np.array([255, 15, 255])
         self.high_white = np.array([255,20, 255])
 
@@ -81,21 +91,21 @@ class ObjectTracker():
             if croppedW>10 and croppedH>10:                    
                 cv2.imwrite(self.tmp_dir+str(self.idx) + '.png', croppedRotated)
                 im = cv2.imread(self.tmp_dir+str(self.idx) + '.png', cv2.IMREAD_COLOR)            
-                #im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-                #imgT = cv2.adaptiveThreshold(im,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
                 ret,imgT = cv2.threshold(im,127,255,cv2.THRESH_BINARY)
                 cv2.imwrite(self.tmp_dir+str(self.idx) + '.png',imgT)
                 print(self.idx," Foto tomada \n")
+
                 #get Text
                 text = self.ocr.getText(self.tmp_dir+str(self.idx) + '.png')
                 self.database.updateText(self.idx,text)
-
-                #get Type
-                type = self.recognizer.compare(self.tmp_dir+str(self.idx) + '.png')
-                self.database.updateType(self.idx,type)
-
-                cv2.putText(self.outputframe, type, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
-
+                
+                if (text==""):
+                    #get Type
+                    type = self.recognizer.compare(self.tmp_dir+str(self.idx) + '.png')
+                    self.database.updateType(self.idx,type)
+                    cv2.putText(self.outputframe, type, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
+                else:
+                    cv2.putText(self.outputframe, text, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (50, 240, 50), 2)
                 self.idx += 1 
                 if (self.idx > self.maxidx):
                     self.maxidx = self.idx                                           
@@ -104,10 +114,11 @@ class ObjectTracker():
             print(e)
     
     
-    def deleteExtraPics(self):
+    def deleteExtraItems(self):
         print("DELETING?", self.maxidx," - ",self.idx)
         if (self.maxidx > self.idx):
             rm = self.maxidx - self.idx
+
             for x in range(0, rm):
                 try:
                     if os.path.exists(self.tmp_dir+str(self.idx+x)+".png"):                        
@@ -118,6 +129,11 @@ class ObjectTracker():
             self.database.removeExtras(self.idx-1)
             self.maxidx = self.idx
 
+    def deleteExtraContainers(self):
+        print("DELETING C?", self.conmaxid," - ",self.conid)
+        if (self.conmaxid > self.conid):
+            self.database.removeExtrasContainers(self.conid-1)
+            self.conmaxid = self.conid
 
     def saveItem(self,con):
         xrange = False
@@ -125,10 +141,8 @@ class ObjectTracker():
         saved = False
         rect = cv2.minAreaRect(con)
         box = cv2.boxPoints(rect)
-        # convert all coordinates floating point values to int
         box = np.int0(box)
-        
-        #Get coordinates
+
         W = rect[1][0] 
         H = rect[1][1] 
         Xs = [i[0] for i in box] 
@@ -140,38 +154,82 @@ class ObjectTracker():
         angle = rect[2] 
         center = (int((x1+x2)/2), int((y1+y2)/2)) 
 
-        print("ITEM: ",self.idx)
+        print("ITEM: ",self.idx)                 
         titem = self.database.getItem(self.idx)
-        
+
         if (titem==None):
             self.database.insertItem(self.idx,x1,x2,y1,y2,"","","")
             saved = True                 
         else:
             print(titem)
-            if ((x1 > titem[1] - 5) and (x1 < titem[3]+5)):
-                xrange = True
-
-            if ((y1 > titem[3] -5 ) and (y1 < titem[3]+5)):
-                yrange = True
-
-            if (xrange == False) and (yrange==False):
+            if(titem[7]=="None"):
                 self.database.updateItem(self.idx,x1,x2,y1,y2,"","","")
-                saved = True                  
+                saved = True 
             else:
-                print("NO cambios: ",self.idx, "\n")                
-                cv2.putText(self.outputframe, titem[7], center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
-                self.idx += 1          
-                if (self.idx > self.maxidx):
-                    self.maxidx = self.idx 
-                saved = False
+                if ((x1 > titem[1] - 5) and (x1 < titem[3]+5)):
+                    xrange = True
+
+                if ((y1 > titem[3] -5 ) and (y1 < titem[3]+5)):
+                    yrange = True
+
+                if (xrange == False) and (yrange==False):
+                    self.database.updateItem(self.idx,x1,x2,y1,y2,"","","")
+                    saved = True                  
+                else:
+                    print("NO cambios: ",self.idx, "\n")                
+                    cv2.putText(self.outputframe, titem[7], center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
+                    self.idx += 1          
+                    if (self.idx > self.maxidx):
+                        self.maxidx = self.idx 
+                    saved = False
+
 
         return W,H,x1,x2,y1,y2,angle,center,saved
             
+    def saveContainer(self,con):
+        xrange = False
+        yrange = False
+        rect = cv2.minAreaRect(con)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        
+        #Get coordinates
+        W = rect[1][0] 
+        H = rect[1][1] 
+        Xs = [i[0] for i in box] 
+        Ys = [i[1] for i in box] 
+        x1 = min(Xs) 
+        x2 = max(Xs) 
+        y1 = min(Ys) 
+        y2 = max(Ys)
+
+        titem = self.database.getContainer(self.conid)
+
+        if (titem==None):
+            self.database.insertContainer(self.conid,x1,x2,y1,y2,"div") 
+            self.conid += 1
+        else:
+            print(titem)            
+            if ((x1 > titem[1] - 5) and (x1 < titem[3]+5)):
+                xrange = True
+            if ((y1 > titem[3] -5 ) and (y1 < titem[3]+5)):
+                yrange = True
+            if (xrange == False) and (yrange==False):
+                self.database.updateContainer(self.conid,x1,x2,y1,y2,"div")
+                self.conid += 1
+            else:
+                print("NO cambios: ",self.conid, "\n")   
+                self.conid += 1
+                
+        if (self.conid > self.conmaxid):
+            self.conmaxid = self.conid            
 
     def trackContainers(self):
-        print("Tracking Tokens")
-        while True:        
+        print("Tracking Tokens")               
+        start = time.time()
+        while True:                    
             self.idx = 0
+            self.conid = 0
             _, self.frame = self.cap.read()
             self.outret, self.outputframe = self.cap.read()
 
@@ -195,6 +253,7 @@ class ObjectTracker():
                     approx = cv2.approxPolyDP(contour,epsilon,True)
                     #Draw contours
                     cv2.drawContours(self.outputframe, approx, -1, (0, 255, 255), 3)
+                    self.saveContainer(contour)
                     #Save coords
                     
 
@@ -222,8 +281,13 @@ class ObjectTracker():
                     #Save coords
                     print("Max: ",self.maxidx)
                     
-    
-            self.deleteExtraPics()
+            #Delete extra tokens
+            self.deleteExtraItems()
+            self.deleteExtraContainers()
+            
+            #Generate model
+            self.mgenerator.updateModel()
+
             #debug only
             if (self.debug):
                 cv2.imshow("Green", green_mask)
@@ -239,7 +303,13 @@ class ObjectTracker():
                self.stop()
                break
 
-            #os.system("PAUSE")
+            finish = time.time()
+            idtime = finish - start
+
+            print("Identification time: ", idtime)     
+
+            if (self.debug):
+                os.system("PAUSE")
 
         
 

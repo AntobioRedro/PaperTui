@@ -6,10 +6,11 @@ class ObjectRecognizer():
     dir ="db/"
     items = list()
     def __init__(self):
-        self.getItems()
+        self.setItems()
 
-    def getItems(self):
+    def setItems(self):
         self.items.append("img.png")
+        self.items.append("video.png")
 
     def compare(self,img2):
         for i in range(0,len(self.items)):
@@ -29,6 +30,7 @@ class ObjectRecognizer():
 
             (score, diff) = compare_ssim(resized, i2, full=True)
             diff = (diff * 255).astype("uint8")
+            print(self.items[i])
             print("SSIM: {}".format(score))
 
             if (score>=0.80):
