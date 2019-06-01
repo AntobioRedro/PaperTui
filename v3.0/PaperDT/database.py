@@ -21,7 +21,13 @@ class Database():
 
 
     def getItems(self):
-        sql = "SELECT x1,x2,y1,y2 FROM items"
+        sql = "SELECT id,x1,x2,y1,y2 FROM items"
+        self.db.execute(sql)
+        result = self.db.fetchall()
+        return result
+
+    def getContainers(self):
+        sql = "SELECT id,x1,x2,y1,y2 FROM containers"
         self.db.execute(sql)
         result = self.db.fetchall()
         return result
@@ -35,6 +41,11 @@ class Database():
         self.db.execute(sql)
         self.conn.commit()
 
+        sql = "DELETE FROM model"
+        self.db.execute(sql)
+        self.conn.commit()
+    
+    def clearModel(self):
         sql = "DELETE FROM model"
         self.db.execute(sql)
         self.conn.commit()
@@ -73,14 +84,14 @@ class Database():
         print("INSERTADO")
 
     def insertItem(self,id,x1,x2,y1,y2,center,text,type):
-        sql = "INSERT INTO items (id, x1,x2,y1,y2,center,text,type) VALUES (%s, %s, %s, %s, %s, '%s', '%s', '%s')"
+        sql = "INSERT INTO items (id, x1,x2,y1,y2,center,text,type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         val = (int(id),int(x1),int(x2),int(y1),int(y2),str(center),str(text),str(type))
         self.db.execute(sql, val)
         self.conn.commit()
         print("INSERTADO")
 
     def updateItem(self,id,x1,x2,y1,y2,center,text,type):
-        sql = "UPDATE items set x1 = %s, x2 = %s, y1 = %s, y2= %s, center = '%s', text = '%s', type = '%s' where id = '%s'"
+        sql = "UPDATE items set x1 = %s, x2 = %s, y1 = %s, y2= %s, center = %s, text = %s, type = %s where id = %s"
         val = (int(x1),int(x2),int(y1),int(y2),str(center),str(text),str(type),int(id))
         self.db.execute(sql, val)
         self.conn.commit()
@@ -107,9 +118,23 @@ class Database():
         self.conn.commit()
         print("TIPO ACTUALIZADO")
 
-    def updateModel():
+    def updateModel(self):
         print("Actualizando el modelo")
 
+    def getContainment(self,container,item):
+        sql = "SELECT * FROM model where container_id = %s and item_id = %s"
+        val = (container,item)
+        self.db.execute(sql, val)
+        result = self.db.fetchone()
+        print(item,container,result)
+        return result
+
+    def insertContainment(self,container,item):
+        sql = "INSERT INTO model (container_id,item_id) VALUES (%s, %s)"
+        val = (int(container),int(item))
+        self.db.execute(sql, val)
+        self.conn.commit()
+        print("INSERTADO")
 
 
 

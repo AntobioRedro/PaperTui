@@ -41,7 +41,7 @@ class ObjectTracker():
         self.recognizer = obr.ObjectRecognizer()
         
         print("Starting Model generator")
-        self.mgenerator = mgen.ModelGenerator()
+        self.mgenerator = mgen.ModelGenerator(self.database)
 
         #General settings
         self.idx = 0
@@ -103,9 +103,9 @@ class ObjectTracker():
                     #get Type
                     type = self.recognizer.compare(self.tmp_dir+str(self.idx) + '.png')
                     self.database.updateType(self.idx,type)
-                    cv2.putText(self.outputframe, type, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
+                    cv2.putText(self.outputframe, type, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 2)
                 else:
-                    cv2.putText(self.outputframe, text, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (50, 240, 50), 2)
+                    cv2.putText(self.outputframe, text, center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
                 self.idx += 1 
                 if (self.idx > self.maxidx):
                     self.maxidx = self.idx                                           
@@ -176,8 +176,12 @@ class ObjectTracker():
                     self.database.updateItem(self.idx,x1,x2,y1,y2,"","","")
                     saved = True                  
                 else:
-                    print("NO cambios: ",self.idx, "\n")                
-                    cv2.putText(self.outputframe, titem[7], center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
+                    print("NO cambios: ",self.idx, "\n")
+                    if (titem[6]!=""):
+                        cv2.putText(self.outputframe, titem[6], center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 255), 2)
+                    else:
+                        cv2.putText(self.outputframe, titem[7], center, cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 2)
+
                     self.idx += 1          
                     if (self.idx > self.maxidx):
                         self.maxidx = self.idx 
@@ -285,7 +289,7 @@ class ObjectTracker():
             self.deleteExtraItems()
             self.deleteExtraContainers()
             
-            #Generate model
+            #Generate model            
             self.mgenerator.updateModel()
 
             #debug only
@@ -296,7 +300,6 @@ class ObjectTracker():
            
             cv2.imshow("PaperType", self.outputframe)
             
-
             #Terminate capture
             key = cv2.waitKey(1)
             if key == 27:

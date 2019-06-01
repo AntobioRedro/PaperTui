@@ -1,5 +1,4 @@
 import tracker as t
-import recognizer as r
 
 def main():
     obt = t.ObjectTracker()

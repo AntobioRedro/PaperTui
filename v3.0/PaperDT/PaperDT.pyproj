@@ -22,7 +22,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="imggen.py">
+    <Compile Include="output.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="main.py">
